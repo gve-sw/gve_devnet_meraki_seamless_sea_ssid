@@ -1,14 +1,21 @@
 import os
 import json
-from rich.console import Console
-from rich.table import Table
-
+import pathlib
 from dotenv import load_dotenv
+from pydantic import field_validator, model_validator, validator, root_validator
+from pydantic_settings import BaseSettings
+from typing import Optional, ClassVar, List, Dict, Any
+import re
+
+# Adjust the path to load the .env file from the project root.
+env_path = pathlib.Path(__file__).parents[2] / '.env'
+print(f'env path: {env_path}')  # for debugging
+load_dotenv(dotenv_path=env_path)
 
 load_dotenv()
 
 
-class Config:
+class Config(BaseSettings):
     """
     The EnvironmentManager class is responsible for loading and validating the necessary environment variables
     that the app relies on.
@@ -22,57 +29,45 @@ class Config:
     """
 
     # Construct the absolute path for dir
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    DIR_PATH: ClassVar[pathlib.Path] = pathlib.Path(__file__).parents[2]
+    ENV_FILE_PATH: ClassVar[str] = str(DIR_PATH / ".env")
+    BOATS_CSV: ClassVar[str] = str(DIR_PATH / "data" / "boats.csv")     # Construct the absolute path for boats.csv
+    CSV_DB: ClassVar[str] = str(DIR_PATH / "data" / "ms_120_device_list.csv")     # Construct the absolute path for boats.csv
+    BOAT_NAMES: ClassVar[str] = str(DIR_PATH / "data" / "test.csv")
 
-    # Define mandatory environment variables
-    MANDATORY_ENV_VARS = ['MERAKI_API_KEY', 'MERAKI_BASE_URL']
+    # Meraki Integration settings
+    MERAKI_API_KEY: str
+    MERAKI_BASE_URL: str
+    MERAKI_NETWORK_ID: str
+    PSK: str
+    MERAKI_SSID_NAME: str
 
-    # Construct the absolute path for boats.csv
-    CSV_FILE = os.path.join(dir_path, '..', '..', 'data', 'boats.csv')
+    # FastAPI Settings
+    APP_NAME: Optional[str] = 'Update your app name in .env'
+    APP_VERSION: Optional[str] = 'Update your ap'
+    DEV_ENV: Optional[str] = 'development'
+    IS_PRODUCTION: bool = DEV_ENV.lower() == 'production'  # True if FLASK_ENV is "production," otherwise False
+    LOGGER_LEVEL: str = 'DEBUG'
 
-    MERAKI_API_KEY = os.getenv('MERAKI_API_KEY')
-    MERAKI_BASE_URL = os.getenv('MERAKI_BASE_URL')
-    MERAKI_NETWORK_ID = os.getenv('MERAKI_NETWORK_ID')
-
-    LOGGER_LEVEL = os.getenv('LOGGER_LEVEL', '').upper() or 'DEBUG'
-    MERAKI_SSID_NAME = os.getenv('MERAKI_SSID_NAME')
-    MY_PSK = os.getenv('MY_PSK')
-
-    APP_NAME = os.environ.get('APP_NAME') or "Update your APP_NAME in .env"
-
-    # For Handling SOME_INTEGER with a default value and error check (for integer type).
-    # try:
-    #     SOME_INTEGER = int(os.getenv('SOME_INTEGER', '100'))  # Default to 100 seconds if left blank
-    # except ValueError:
-    #     TIMESPAN_IN_SECONDS = 100  # Default to 100 seconds if the provided value is invalid, so it won't break program.
-
+    _instance: ClassVar[Optional['Config']] = None
 
     @classmethod
-    def handle_error(cls, error_message):
-        """Handles errors by printing an error message and exiting the program."""
-        console = Console()
-        console.print(f"[bold red]Error:[/bold red] {error_message}", highlight=False)
-        exit(1)
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
-    @classmethod
-    def validate_env_variables(cls):
-        missing_vars = []
-        console = Console()  # Instantiate a console object for rich
+    @field_validator('MERAKI_BASE_URL', mode='before')
+    def validate_meraki_base_url(cls, v):
+        if not re.match(r'https://api.meraki\.com/api/v1', v):
+            raise ValueError('WEBEX_BASE_URL must be: https://api.meraki.com/api/v1/')
+        return v
 
-        table = Table(title="Environment Variables")
-        table.add_column("Variable", justify="left", style="bright_white", width=30)
-        table.add_column("Value", style="bright_white", width=60)
+    @field_validator('MERAKI_API_KEY', mode='before')
+    def validate_api_key(cls, v):
+        if not v:
+            raise ValueError('MREAKI_API_KEY must not be empty')
+        return v
 
-        for var_name, var_value in cls.__dict__.items():
-            if "os" in var_name or "__" in var_name or isinstance(var_value, classmethod) or var_name == 'MANDATORY_ENV_VARS':
-                continue
-            # Check if mandatory variables are set. if var_name in cls.MANDATORY_ENV_VARS and not var_value: Add variable to the table
-            table.add_row(var_name, str(var_value) if var_value not in [None, ""] else "Not Set")
-            if var_name in cls.MANDATORY_ENV_VARS and var_value in [None, ""]:
-                missing_vars.append(var_name)
 
-        # Display the table
-        console.print(table)
-
-        if missing_vars:
-            cls.handle_error(f"The following environment variables are not set: {', '.join(missing_vars)}")
+config = Config.get_instance()

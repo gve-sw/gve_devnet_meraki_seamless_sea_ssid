@@ -1,2 +1,1 @@
-mac_address,ssid_number,vlan
-BOAT_MAC_ADDRESS, BOAT_SSID_NUMBER, BOAT_VLAN_NUMBER
+SystemName,ssid_number,vlan

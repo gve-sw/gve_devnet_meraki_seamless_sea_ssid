@@ -12,8 +12,12 @@ IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 or implied.
 """
 
-from meraki_funcs import get_meraki_dashboard, get_org_id, get_networks_in_org
+# from meraki_funcs import get_meraki_dashboard, get_org_id, get_networks_in_org, get_meraki_network_switches
+from meraki_funcs import MerakiOps
+from funcs import save_devices_to_csv
 import os
+from logrr import lm
+import json
 
 
 def save_network_id_to_env(network_id):
@@ -48,24 +52,48 @@ def save_network_id_to_env(network_id):
 
 
 def main():
-    dashboard = get_meraki_dashboard()
-    org_id = get_org_id(dashboard)
+    meraki_ops = MerakiOps()
+    # dashboard = get_meraki_dashboard()
+    # org_id = get_org_id(dashboard)
+    org_id = meraki_ops.get_org_id()
 
     if org_id:
-        meraki_networks = get_networks_in_org(dashboard, org_id)
+        meraki_networks = meraki_ops.get_networks_in_org(org_id)
         if meraki_networks:
             # Display networks and let the user choose
             for index, network in enumerate(meraki_networks):
                 print(f"{index + 1}. {network['name']} (ID: {network['id']})")
 
             while True:
-                choice = input("Enter the number of the network you want to use: ")
+                network_choice = input("Enter the number of the network you want to use: ")
                 try:
-                    choice_index = int(choice) - 1
-                    if 0 <= choice_index < len(meraki_networks):
-                        selected_network_id = meraki_networks[choice_index]['id']
+                    network_choice_index = int(network_choice) - 1
+                    if 0 <= network_choice_index < len(meraki_networks):
+                        selected_network_id = meraki_networks[network_choice_index]['id']
                         save_network_id_to_env(selected_network_id)
-                        break
+                        ms_list = meraki_ops.get_meraki_network_switches(selected_network_id)
+                        lm.tsp(ms_list)
+                        if ms_list:
+                            # Display devices in network and let the user choose
+                            for index, device in enumerate(ms_list):
+                                print(f"{index + 1}. {device['model']} (Serial Number: {device['serial']})")
+
+                            while True:
+                                device_choices = input("Enter the number(s) of the device(s) you want to use (comma-separated): ")
+                                try:
+                                    choice_indices = [int(choice.strip()) - 1 for choice in device_choices.split(',')]
+                                    if all(0 <= idx < len(ms_list) for idx in choice_indices):
+                                        selected_devices = [ms_list[idx]['serial'] for idx in choice_indices]
+                                        print(f"Selected devices: {selected_devices}")
+                                        save_devices_to_csv(selected_devices, ms_list)
+                                        break
+                                    else:
+                                        print("Invalid selection. Please enter numbers from the list, separated by commas.")
+                                except ValueError:
+                                    print("Invalid input. Please enter numeric values, separated by commas.")
+                            break
+                        else:
+                            print("No devices found in the selected network.")
                     else:
                         print("Invalid selection. Please enter a number from the list.")
                 except ValueError:

@@ -77,7 +77,7 @@ uvicorn app:app --log-level warning
 
 To run with Docker:
 ```script
-With Docker: docker-compose up
+docker-compose up
 ```
 
 # Screenshots

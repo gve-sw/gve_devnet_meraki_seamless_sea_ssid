@@ -18,9 +18,13 @@ build/
 .idea/misc.xml
 
 data/temp.py
+data/boats.csv
 *.iml
 
 .idea/misc.xml
 .idea/gve_devnet_meraki_seamless_sea_ssid.iml
+data/temp.json
 data/temp.py
+data/test.csv
+data/webhook.json
 *.log
